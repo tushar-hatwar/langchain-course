@@ -6,21 +6,27 @@ from langchain_core.messages import HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
+from azure_env_embed import embeddings
+from azure_env import llm
 
 load_dotenv()
 
-print("Initializing components...")
+print("\n" + "="*80)
+print("INITIALIZATION PHASE")
+print("="*80)
+print(f"Loading environment variables...")
+print(f"INDEX_NAME: {os.environ.get('INDEX_NAME')}")
 
-embeddings = OpenAIEmbeddings()
-llm = ChatOpenAI()
-
+print("\nInitializing Pinecone VectorStore...")
 vectorstore = PineconeVectorStore(
     index_name=os.environ["INDEX_NAME"], embedding=embeddings
 )
+print(f"✓ VectorStore initialized: {type(vectorstore).__name__}")
 
+print("\nCreating retriever (k=3)...")
 retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+print(f"✓ Retriever created: {type(retriever).__name__}")
 
 prompt_template = ChatPromptTemplate.from_template(
     """Answer the question based only on the following context:
@@ -35,7 +41,12 @@ Provide a detailed answer:"""
 
 def format_docs(docs):
     """Format retrieved documents into a single string."""
-    return "\n\n".join(doc.page_content for doc in docs)
+    print(f"\n[format_docs] Formatting {len(docs)} documents...")
+    for i, doc in enumerate(docs, 1):
+        print(f"  Doc {i}: {len(doc.page_content)} chars, metadata: {doc.metadata}")
+    formatted = "\n\n".join(doc.page_content for doc in docs)
+    print(f"[format_docs] Total formatted length: {len(formatted)} chars")
+    return formatted
 
 
 # ============================================================================
@@ -54,18 +65,28 @@ def retrieval_chain_without_lcel(query: str):
     - More verbose and error-prone
     """
     # Step 1: Retrieve relevant documents
+    print(f"\n[Step 1] Retrieving documents for query: '{query}'")
     docs = retriever.invoke(query)
+    print(f"[Step 1] ✓ Retrieved {len(docs)} documents")
 
     # Step 2: Format documents into context string
+    print(f"\n[Step 2] Formatting documents into context...")
     context = format_docs(docs)
+    print(f"[Step 2] ✓ Context created")
 
     # Step 3: Format the prompt with context and question
+    print(f"\n[Step 3] Formatting prompt template...")
     messages = prompt_template.format_messages(context=context, question=query)
+    print(f"[Step 3] ✓ Created {len(messages)} message(s)")
+    print(f"[Step 3] Message preview: {str(messages[0])[:200]}...")
 
     # Step 4: Invoke LLM with the formatted messages
+    print(f"\n[Step 4] Invoking LLM...")
     response = llm.invoke(messages)
+    print(f"[Step 4] ✓ LLM response received: {len(response.content)} chars")
 
     # Step 5: Return the content
+    print(f"\n[Step 5] ✓ Returning response content")
     return response.content
 
 
@@ -103,6 +124,9 @@ if __name__ == "__main__":
 
     # Query
     query = "what is Pinecone in machine learning?"
+    print(f"\n{'='*80}")
+    print(f"QUERY: {query}")
+    print(f"{'='*80}")
 
     # ========================================================================
     # Option 0: Raw invocation without RAG
@@ -110,7 +134,10 @@ if __name__ == "__main__":
     print("\n" + "=" * 70)
     print("IMPLEMENTATION 0: Raw LLM Invocation (No RAG)")
     print("=" * 70)
+    print(f"\n[RAW LLM] Sending query directly to LLM without retrieval...")
     result_raw = llm.invoke([HumanMessage(content=query)])
+    print(f"[RAW LLM] ✓ Response received: {len(result_raw.content)} chars")
+    print(f"[RAW LLM] Response type: {type(result_raw).__name__}")
     print("\nAnswer:")
     print(result_raw.content)
 
@@ -138,7 +165,12 @@ if __name__ == "__main__":
     print("- Better for production use")
     print("=" * 70)
 
+    print(f"\n[LCEL] Creating chain...")
     chain_with_lcel = create_retrieval_chain_with_lcel()
+    print(f"[LCEL] ✓ Chain created: {type(chain_with_lcel).__name__}")
+    print(f"\n[LCEL] Invoking chain with question: '{query}'")
     result_with_lcel = chain_with_lcel.invoke({"question": query})
+    print(f"[LCEL] ✓ Chain completed: {len(result_with_lcel)} chars")
+    print(f"[LCEL] Result type: {type(result_with_lcel).__name__}")
     print("\nAnswer:")
     print(result_with_lcel)
