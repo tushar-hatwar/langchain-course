@@ -2,15 +2,15 @@ import os
 
 from dotenv import load_dotenv
 from langchain_community.document_loaders import TextLoader
-from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from langchain_text_splitters import CharacterTextSplitter
+from azure_env_embed import embeddings
 
 load_dotenv()
 
 if __name__ == "__main__":
     print("Ingesting...")
-    loader = TextLoader("/Users/edenmarco/Desktop/langchain-course/mediumblog1.txt")
+    loader = TextLoader(os.path.join(os.path.dirname(__file__), "mediumblog1.txt"), encoding="utf-8")
     document = loader.load()
 
     print("splitting...")
@@ -18,9 +18,8 @@ if __name__ == "__main__":
     texts = text_splitter.split_documents(document)
     print(f"created {len(texts)} chunks")
 
-    embeddings = OpenAIEmbeddings(openai_api_key=os.environ.get("OPENAI_API_KEY"))
-
     print("ingesting...")
+    print(os.environ["INDEX_NAME"])
     PineconeVectorStore.from_documents(
         texts, embeddings, index_name=os.environ["INDEX_NAME"]
     )
